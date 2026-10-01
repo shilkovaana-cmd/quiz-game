@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>AI RPG Викторина</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1e1e1e; color: #fff; text-align: center; margin: 0; padding: 20px; }
+        #game { display: none; }
+        .btn { background: #646cff; color: white; border: none; padding: 10px 20px; font-size: 16px; cursor: pointer; border-radius: 8px; margin: 5px; }
+        .btn:hover { background: #535bf2; }
+        .player-card { background: #333; padding: 10px; margin: 10px; border-radius: 8px; display: inline-block; min-width: 150px; }
+        #options-container button { display: block; width: 80%; max-width: 400px; margin: 10px auto; }
+        #status { color: #aaa; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <div id="login">
+        <h1>Викторина</h1>
+        <input type="text" id="username" placeholder="Ваше имя" style="padding: 10px; font-size: 16px;">
+        <button class="btn" onclick="joinGame()">Играть</button>
+    </div>
+
+    <div id="game">
+        <div id="players-container"></div>
+        <hr style="border-color: #444;">
+        
+        <button class="btn" onclick="askAI()" style="background: #e91e63;">Сгенерировать новый вопрос ИИ</button>
+        <p id="status"></p>
+        
+        <h2 id="question-text">Вопрос появится здесь</h2>
+        <div id="options-container"></div>
+    </div>
+
+    <!-- Подключаем Socket.io -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let myName = '';
+
+        function joinGame() {
+            myName = document.getElementById('username').value;
+            if (!myName) return;
+            socket.emit('join_game', myName);
+            document.getElementById('login').style.display = 'none';
+            document.getElementById('game').style.display = 'block';
+        }
+
+        function askAI() {
+            socket.emit('generate_question');
+            document.getElementById('status').innerText = 'Ждем ответа от Qwen...';
+            document.getElementById('options-container').innerHTML = '';
+        }
+
+        socket.on('update_players', (players) => {
+            const container = document.getElementById('players-container');
+            container.innerHTML = players.map(p => `
+                <div class="player-card">
+                    <b>${p.name}</b><br>
+                    Уровень: ${p.level}<br>
+                    XP: ${p.xp} | 🪙 ${p.gold}
+                </div>
+            `).join('');
+        });
+
+        socket.on('new_question', (q) => {
+            document.getElementById('status').innerText = '';
+            document.getElementById('question-text').innerText = q.question;
+            const optionsDiv = document.getElementById('options-container');
+            
+            optionsDiv.innerHTML = q.options.map((opt, index) => `
+                <button class="btn" onclick="sendAnswer(${index})">${opt}</button>
+            `).join('');
+        });
+
+        socket.on('system_message', (msg) => {
+            document.getElementById('status').innerText = msg;
+        });
+
+        function sendAnswer(index) {
+            socket.emit('answer', index);
+            document.getElementById('options-container').innerHTML = '<i>Ответ принят, ждем следующий вопрос...</i>';
+        }
+    </script>
+</body>
+</html>
